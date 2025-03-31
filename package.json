@@ -1,0 +1,19 @@
+{
+  "name": "desafio-1-uol",
+  "version": "1.0.0",
+  "description": "��#\u0000 \u0000A\u0000N\u0000M\u0000A\u0000R\u00002\u00005\u0000_\u0000D\u00000\u00001\u0000_\u0000C\u0000O\u0000M\u0000P\u0000A\u0000S\u0000S\u0000C\u0000A\u0000R\u0000\r\u0000 \u0000",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^5.1.0",
+    "mysql2": "^3.14.0",
+    "sequelize": "^6.37.7"
+  }
+}
