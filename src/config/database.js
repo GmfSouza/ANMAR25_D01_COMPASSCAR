@@ -1,11 +1,9 @@
+require("dotenv").config();
+
 module.exports = {
-	host: "localhost",
+	host: process.env.DB_HOST,
 	dialect: "mysql",
-	username: "root",
-	password: "1*4G$E4k*7J*",
-	database: "compasscar",
-	define: {
-		timestamp: true,
-		underscored: true,
-	},
+	username: process.env.DB_USER,
+	password: process.env.DB_PASSWORD,
+	database: process.env.DB_NAME,
 };
