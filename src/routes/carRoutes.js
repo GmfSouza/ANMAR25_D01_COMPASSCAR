@@ -39,8 +39,21 @@ router.post("/", async (req, res) => {
 });
 
 
-router.get("/", (req, res) => {
-	res.send("GET /api/v1/cars is running!");
+router.get("/", async (req, res) => {
+	try{
+		const cars = await Car.findAll({
+			include: [{
+				model: CarItem,
+				as: "items",
+			}]
+		})
+
+		res.status(200).json(cars)
+	} catch (error) {
+		console.error("Error when searching for cars", error)
+		res.status(404).json({error: "car not found", details: error.message})
+	}
+	
 });
 
 module.exports = router;
