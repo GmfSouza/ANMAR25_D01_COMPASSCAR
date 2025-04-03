@@ -22,10 +22,10 @@ const CarItem = connection.define(
 				key: "id",
 			},
 		},
-		created_at: {
-			type: DataTypes.DATE,
-			defaultValue: Sequelize.NOW,
-		},
+		 created_at: {
+		 	type: DataTypes.DATE,
+		 	defaultValue: Sequelize.NOW,
+		 },
 	},
 	{
 		tableName: "cars_items",
@@ -34,7 +34,7 @@ const CarItem = connection.define(
 	}
 );
 
-Car.hasMany(CarItem, { foreignKey: "car_id" });
+Car.hasMany(CarItem, { foreignKey: "car_id", as: "items" });
 CarItem.belongsTo(Car, { foreignKey: "car_id" });
 
 module.exports = CarItem;
