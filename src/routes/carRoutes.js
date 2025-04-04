@@ -49,9 +49,10 @@ router.get("/", async (req, res) => {
 		res.status(200).json(cars);
 	} catch (error) {
 		console.error("Error when searching for cars:", error);
-		res
-			.status(500)
-			.json({ error: "Failed to search cars", details: error.message });
+		res.status(500).json({
+			error: "an internal server error occurred",
+			details: error.message,
+		});
 	}
 });
 
@@ -75,9 +76,34 @@ router.get("/:id", async (req, res) => {
 		res.status(200).json(car);
 	} catch (error) {
 		console.error("Error when searching for car", error);
-		res
-			.status(500)
-			.json({ error: "Failed to search car", details: error.message });
+		res.status(500).json({
+			error: ["an internal server error occurred"],
+			details: error.message,
+		});
+	}
+});
+
+router.delete("/:id", async (req, res) => {
+	try {
+		const { id } = req.params;
+
+		const car = await Car.findByPk(id);
+
+		if (!car) {
+			return res.status(404).json({ error: "car not found" });
+		}
+
+		await CarItem.destroy({ where: { car_id: id } });
+
+		await car.destroy();
+
+		res.status(204).json();
+	} catch (error) {
+		console.error("Error when searching for car", error);
+		res.status(500).json({
+			error: ["an internal server error occurred"],
+			details: error.message,
+		});
 	}
 });
 
