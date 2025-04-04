@@ -83,6 +83,50 @@ router.get("/:id", async (req, res) => {
 	}
 });
 
+router.put("/:id/items", async (req, res) => {
+	try {
+		const { id } = req.params;
+		const { items } = req.body;
+
+		const car = Car.findByPk(id);
+
+		if (!car) {
+			return res.status(404).json({ errors: ["car not found"] });
+		}
+
+		await CarItem.destroy({ where: { car_id: id } });
+
+		let carItems = [];
+		if (items && items.length > 0) {
+			carItems = await Promise.all(
+				items.map((itemName) =>
+					CarItem.create({
+						name: itemName,
+						car_id: id,
+					})
+				)
+			);
+		}
+
+		const updatedCar = await Car.findByPk(id, {
+			include: [
+				{
+					model: CarItem,
+					as: "items",
+				},
+			],
+		});
+
+		res.status(204).json();
+	} catch (error) {
+		console.error("Error when searching for car", error);
+		res.status(500).json({
+			error: ["an internal server error occurred"],
+			details: error.message,
+		});
+	}
+});
+
 router.delete("/:id", async (req, res) => {
 	try {
 		const { id } = req.params;
