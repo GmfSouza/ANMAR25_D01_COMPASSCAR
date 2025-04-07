@@ -3,6 +3,20 @@ const router = express.Router();
 const Car = require("../models/car.js");
 const CarItem = require("../models/carItem.js");
 
+const plateFormatValidator = (plate) => {
+	if (!plate) return false;
+	if (plate.length !== 8) return false;
+	const parts = plate.split("-");
+	if (parts.length !== 2) return false;
+	const [letters, numbers] = parts;
+	if (letters.length !== 3 || numbers.length !== 4) return false;
+	if (!/^[A-Z]{3}$/.test(letters)) return false;
+	if (!/^[0-9]$/.test(numbers[0])) return false;
+	if (!/^[A-J0-9]$/.test(numbers[1])) return false;
+	if (!/^[0-9]{2}$/.test(numbers.slice(2))) return false;
+	return true;
+};
+
 const CarDataValidator = async (data) => {
 	const errors = [];
 
@@ -27,20 +41,6 @@ const CarDataValidator = async (data) => {
 	}
 
 	return errors;
-};
-
-const plateFormatValidator = (plate) => {
-	if (!plate) return false;
-	if (plate.length !== 8) return false;
-	const parts = plate.split("-");
-	if (parts.length !== 2) return false;
-	const [letters, numbers] = parts;
-	if (letters.length !== 3 || numbers.length !== 4) return false;
-	if (!/^[A-Z]{3}$/.test(letters)) return false;
-	if (!/^[0-9]$/.test(numbers[0])) return false;
-	if (!/^[A-J0-9]$/.test(numbers[1])) return false;
-	if (!/^[0-9]{2}$/.test(numbers.slice(2))) return false;
-	return true;
 };
 
 const itemsValidator = (items) => {
@@ -122,9 +122,12 @@ router.get("/:id", async (req, res) => {
 			return res.status(404).json({ errors: ["car not found"] });
 		}
 
-		res.status(200).json(car);
+		const carData = car.toJSON();
+		carData.items = carData.items.map(item => item.name);
+
+		res.status(200).json(carData);
 	} catch (error) {
-		console.error("Error when searching for car", error);
+		console.error("Error when searching for car:", error);
 		res.status(500).json({ errors: ["an internal server error occurred"] });
 	}
 });
