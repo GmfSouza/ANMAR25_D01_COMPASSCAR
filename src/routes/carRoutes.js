@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const Car = require("../models/car.js");
 const CarItem = require("../models/carItem.js");
+const { Op } = require("sequelize");
 
 const plateFormatValidator = (plate) => {
 	if (!plate) return false;
@@ -90,17 +91,67 @@ router.post("/", async (req, res) => {
 
 router.get("/", async (req, res) => {
 	try {
+		const {
+			brand,
+			model,
+			year,
+			plate,
+			final_plate,
+			page = 1,
+			limit = 5,
+		} = req.query;
+
+		let pageNum = parseInt(page, 10);
+		let limitNum = parseInt(limit, 10);
+
+		if (isNaN(pageNum) || pageNum < 1) {
+			pageNum = 1;
+		}
+
+		if (isNaN(limitNum) || limitNum < 1) {
+			limitNum = 5;
+		} else if (limitNum > 10) {
+			limitNum = 10;
+		}
+
+		const offset = (pageNum - 1) * limitNum;
+
+		const where = {};
+		if (brand) {
+			where.brand = { [Op.iLike]: `%${brand}%` };
+		}
+		if (model) {
+			where.model = model;
+		}
+		if (year) {
+			where.year = { [Op.gte]: parseInt(year, 10) };
+		}
+		if (plate) {
+			where.plate = plate;
+		}
+		if (final_plate) {
+			where.plate = { [Op.like]: `%${final_plate}` };
+		}
+
+		const totalCount = await Car.count({ where });
+
 		const cars = await Car.findAll({
-			include: [
-				{
-					model: CarItem,
-					as: "items",
-				},
-			],
+			where,
+			limit: limitNum,
+			offset,
 		});
-		res.status(200).json(cars);
+
+		const totalPages = Math.ceil(totalCount / limitNum);
+
+		const response = {
+			count: totalCount,
+			pages: totalPages,
+			data: cars.map((car) => car.toJSON()),
+		};
+
+		res.status(200).json(response);
 	} catch (error) {
-		console.error("Error when searching for cars", error);
+		console.error("Error when searching for cars:", error);
 		res.status(500).json({ errors: ["an internal server error occurred"] });
 	}
 });
@@ -123,7 +174,7 @@ router.get("/:id", async (req, res) => {
 		}
 
 		const carData = car.toJSON();
-		carData.items = carData.items.map(item => item.name);
+		carData.items = carData.items.map((item) => item.name);
 
 		res.status(200).json(carData);
 	} catch (error) {
