@@ -3,8 +3,34 @@ const router = express.Router();
 const Car = require("../models/car.js");
 const CarItem = require("../models/carItem.js");
 
+const CarDataValidator = async (data) => {
+	const errors = [];
+
+	if (!data.brand) errors.push("brand is required");
+	if (!data.model) errors.push("model is required");
+	if (!data.year) errors.push("year is required");
+	if (!data.plate) errors.push("plate is required");
+
+	if ((data.year && data.year < 2016) || data.year > 2026) {
+		errors.push("year must be between 2016 and 2026");
+	}
+
+	if (data.plate && !plateFormatValidator(data.plate)) {
+		errors.push("plate must be in the correct format ABC-1C34");
+	}
+
+	if (data.plate) {
+		const existingCar = await Car.findOne({ where: { plate: data.plate } });
+		if (existingCar) {
+			errors.push("car already registered");
+		}
+	}
+
+	return errors;
+};
+
 const plateFormatValidator = (plate) => {
-	if (!plate) return true;
+	if (!plate) return false;
 	if (plate.length !== 8) return false;
 	const parts = plate.split("-");
 	if (parts.length !== 2) return false;
@@ -17,9 +43,36 @@ const plateFormatValidator = (plate) => {
 	return true;
 };
 
+const itemsValidator = (items) => {
+	const errors = [];
+
+	if (!Array.isArray(items) || items.length === 0) {
+		errors.push("items is required");
+	} else {
+		if (items.length > 5) {
+			errors.push("items must be a maximum of 5");
+		}
+
+		const singleItem = new Set(items);
+		if (singleItem.size !== items.length) {
+			errors.push("items cannot be repeated");
+		}
+	}
+
+	return errors;
+};
+
 router.post("/", async (req, res) => {
 	try {
-		const { brand, model, plate, year, items } = req.body;
+		const { brand, model, plate, year } = req.body;
+
+		const errors = await CarDataValidator({ brand, model, plate, year });
+		if (errors.length > 0) {
+			if (errors.includes("car already registered")) {
+				return res.status(409).json({ errors });
+			}
+			return res.status(400).json({ errors });
+		}
 
 		const car = await Car.create({
 			brand,
@@ -28,25 +81,10 @@ router.post("/", async (req, res) => {
 			year,
 		});
 
-		let carItems = [];
-		if (items && items.length > 0) {
-			carItems = await Promise.all(
-				items.map((itemName) =>
-					CarItem.create({
-						name: itemName,
-						car_id: car.id,
-					})
-				)
-			);
-		}
-
-		res.status(201).json({
-			...car.toJSON(),
-			carItems: carItems.map((item) => item.toJSON()),
-		});
+		res.status(201).json(car.toJSON());
 	} catch (error) {
 		console.error("Error creating car:", error);
-		res.status(400).json({ error: "Failed to create car" });
+		res.status(500).json({ errors: ["an internal server error occurred"] });
 	}
 });
 
@@ -62,11 +100,8 @@ router.get("/", async (req, res) => {
 		});
 		res.status(200).json(cars);
 	} catch (error) {
-		console.error("Error when searching for cars:", error);
-		res.status(500).json({
-			error: "an internal server error occurred",
-			details: error.message,
-		});
+		console.error("Error when searching for cars", error);
+		res.status(500).json({ errors: ["an internal server error occurred"] });
 	}
 });
 
@@ -84,16 +119,13 @@ router.get("/:id", async (req, res) => {
 		});
 
 		if (!car) {
-			return res.status(404).json({ error: "Car not found." });
+			return res.status(404).json({ errors: ["car not found"] });
 		}
 
 		res.status(200).json(car);
 	} catch (error) {
 		console.error("Error when searching for car", error);
-		res.status(500).json({
-			error: ["an internal server error occurred"],
-			details: error.message,
-		});
+		res.status(500).json({ errors: ["an internal server error occurred"] });
 	}
 });
 
@@ -102,42 +134,31 @@ router.put("/:id/items", async (req, res) => {
 		const { id } = req.params;
 		const { items } = req.body;
 
-		const car = Car.findByPk(id);
-
+		const car = await Car.findByPk(id);
 		if (!car) {
 			return res.status(404).json({ errors: ["car not found"] });
 		}
 
-		await CarItem.destroy({ where: { car_id: id } });
-
-		let carItems = [];
-		if (items && items.length > 0) {
-			carItems = await Promise.all(
-				items.map((itemName) =>
-					CarItem.create({
-						name: itemName,
-						car_id: id,
-					})
-				)
-			);
+		const errors = itemsValidator(items);
+		if (errors.length > 0) {
+			return res.status(400).json({ errors });
 		}
 
-		const updatedCar = await Car.findByPk(id, {
-			include: [
-				{
-					model: CarItem,
-					as: "items",
-				},
-			],
-		});
+		await CarItem.destroy({ where: { car_id: id } });
 
-		res.status(204).json();
+		await Promise.all(
+			items.map((itemName) =>
+				CarItem.create({
+					name: itemName,
+					car_id: id,
+				})
+			)
+		);
+
+		res.status(204).send();
 	} catch (error) {
-		console.error("Error when searching for car", error);
-		res.status(500).json({
-			error: ["an internal server error occurred"],
-			details: error.message,
-		});
+		console.error("Error updating car items:", error);
+		res.status(500).json({ errors: ["an internal server error occurred"] });
 	}
 });
 
@@ -149,7 +170,7 @@ router.patch("/:id", async (req, res) => {
 		const car = await Car.findByPk(id);
 
 		if (!car) {
-			return res.status(404).json({ error: ["car not found"] });
+			return res.status(404).json({ errors: ["car not found"] });
 		}
 
 		const errors = [];
@@ -158,7 +179,7 @@ router.patch("/:id", async (req, res) => {
 		if (brand !== undefined && brand !== null && brand !== "") {
 			updateData.brand = brand;
 		}
-		if (model !== undefined && brand !== null && brand !== "") {
+		if (model !== undefined && model !== null && model !== "") {
 			updateData.model = model;
 		}
 		if (plate !== undefined && plate !== null && plate !== "") {
@@ -172,7 +193,7 @@ router.patch("/:id", async (req, res) => {
 			errors.push("model must also be informed");
 		}
 
-		if (updateData.year < 2016 || updateData.year > 2026) {
+		if (updateData.year && (updateData.year < 2016 || updateData.year > 2026)) {
 			errors.push("year must be between 2016 and 2026");
 		}
 
@@ -190,22 +211,22 @@ router.patch("/:id", async (req, res) => {
 		}
 
 		if (errors.length > 0) {
-			return res.status(409).json({ errors });
+			if (errors.includes("car already registered")) {
+				return res.status(409).json({ errors });
+			}
+			return res.status(400).json({ errors });
 		}
 
 		if (Object.keys(updateData).length === 0) {
-			return res.status(204).json();
+			return res.status(204).send();
 		}
 
 		await car.update(updateData);
 
-		res.status(204).json();
+		res.status(204).send();
 	} catch (error) {
-		console.error("Error when searching for car", error);
-		res.status(500).json({
-			error: ["an internal server error occurred"],
-			details: error.message,
-		});
+		console.error("Error updating car:", error);
+		res.status(500).json({ errors: ["an internal server error occurred"] });
 	}
 });
 
@@ -216,20 +237,17 @@ router.delete("/:id", async (req, res) => {
 		const car = await Car.findByPk(id);
 
 		if (!car) {
-			return res.status(404).json({ error: "car not found" });
+			return res.status(404).json({ errors: ["car not found"] });
 		}
 
 		await CarItem.destroy({ where: { car_id: id } });
 
 		await car.destroy();
 
-		res.status(204).json();
+		res.status(204).send();
 	} catch (error) {
-		console.error("Error when searching for car", error);
-		res.status(500).json({
-			error: ["an internal server error occurred"],
-			details: error.message,
-		});
+		console.error("Error deleting car:", error);
+		res.status(500).json({ errors: ["an internal server error occurred"] });
 	}
 });
 
